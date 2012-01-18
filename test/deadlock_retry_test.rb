@@ -8,6 +8,7 @@ puts "Testing ActiveRecord #{ActiveRecord::VERSION::STRING}"
 
 require 'test/unit'
 require 'mocha'
+require 'ruby-debug'
 require 'logger'
 require "deadlock_retry"
 
@@ -37,7 +38,7 @@ class MockModel
     []
   end
 
-  def self.execute(sql)
+  def self.select_rows(sql)
     [['version', '5.1.45']]
   end
 
