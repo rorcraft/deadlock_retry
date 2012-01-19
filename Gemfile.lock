@@ -27,6 +27,7 @@ GEM
     mocha (0.10.2)
       metaclass (~> 0.0.1)
     multi_json (1.0.4)
+    mysql2 (0.3.11)
     rbx-require-relative (0.0.5)
     ruby-debug (0.10.4)
       columnize (>= 0.1)
@@ -42,4 +43,5 @@ DEPENDENCIES
   activerecord (~> 3.0)
   deadlock_retry!
   mocha
+  mysql2
   ruby-debug

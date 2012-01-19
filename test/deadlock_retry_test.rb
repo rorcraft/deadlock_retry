@@ -49,12 +49,49 @@ class MockModel
   include DeadlockRetry
 end
 
+class DeadlockModel < ActiveRecord::Base
+  after_create :deadlock_on_first_try
+
+  def deadlock_on_first_try
+    raise ActiveRecord::StatementInvalid.new("Lock wait timeout exceeded") if @deadlocked.nil?
+  ensure
+    @deadlocked = true
+  end
+end
+
+class DeadlockRetryHelper
+  def self.setup_mysql
+    config    = YAML.load(File.open("#{File.dirname(__FILE__)}/db/database.yml"))
+    @host     = config['host']
+    @username = config['username']
+    @password = config['password']
+    @socket   = config['socket']
+
+    ActiveRecord::Base.establish_connection(
+      :adapter  => 'mysql2',
+      :database => 'deadlock_retry',
+      :username => @username,
+      :password => @password,
+      :host     => @host,
+      :socket   => @socket
+    )
+    FileUtils.mkdir_p "tmp"
+    ActiveRecord::Base.logger = Logger.new(File.open('tmp/mysql.log', 'a'))
+
+    structure = File.open("#{File.dirname(__FILE__)}/db/structure.sql") { |f| f.read.chomp }
+    structure.split(';').each { |table|
+      ActiveRecord::Base.connection.execute table
+    }
+  end
+end
+
 class DeadlockRetryTest < Test::Unit::TestCase
   DEADLOCK_ERROR = "MySQL::Error: Deadlock found when trying to get lock"
   TIMEOUT_ERROR = "MySQL::Error: Lock wait timeout exceeded"
 
   def setup
     MockModel.stubs(:exponential_pause)
+    DeadlockRetryHelper.setup_mysql
   end
 
   def test_no_errors
@@ -111,5 +148,15 @@ class DeadlockRetryTest < Test::Unit::TestCase
     end
 
     assert_equal 4, tries
+  end
+
+  def test_deadlock_retry_on_create
+    @model = DeadlockModel.new do |m|
+      m.name = "testing"
+    end
+    DeadlockModel.transaction do
+      @model.save
+    end
+    assert DeadlockModel.find(@model.id).present?
   end
 end
