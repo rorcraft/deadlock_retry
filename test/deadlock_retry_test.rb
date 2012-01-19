@@ -1,7 +1,6 @@
 require 'rubygems'
 
 # Change the version if you want to test a different version of ActiveRecord
-gem 'activerecord', ' ~>3.0'
 require 'active_record'
 require 'active_record/version'
 puts "Testing ActiveRecord #{ActiveRecord::VERSION::STRING}"
@@ -50,10 +49,14 @@ class MockModel
 end
 
 class DeadlockModel < ActiveRecord::Base
-  after_create :deadlock_on_first_try
+  after_save :deadlock_on_first_try
+
+  before_save do
+    puts "Saving as new record?: #{self.new_record?}"
+  end
 
   def deadlock_on_first_try
-    raise ActiveRecord::StatementInvalid.new("Lock wait timeout exceeded") if @deadlocked.nil?
+    raise ActiveRecord::StatementInvalid.new("MySQL::Error: Lock wait timeout exceeded") if @deadlocked.nil?
   ensure
     @deadlocked = true
   end
@@ -154,9 +157,7 @@ class DeadlockRetryTest < Test::Unit::TestCase
     @model = DeadlockModel.new do |m|
       m.name = "testing"
     end
-    DeadlockModel.transaction do
-      @model.save
-    end
+    @model.save!
     assert DeadlockModel.find(@model.id).present?
   end
 end
